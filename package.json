@@ -6,7 +6,8 @@
     "dev": "bun run app/main.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "tsx": "^4.23.13"
   },
   "dependencies": {
     "netcat": "^1.5.2"
