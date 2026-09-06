@@ -1,7 +1,8 @@
 import type { Buffer } from "buffer";
 import * as net from "net";
 
-const database = new Map<string, { value: string; expiresAt?: number }>();
+const stringStore = new Map<string, { value: string; expiresAt?: number }>();
+const listStore = new Map<string, string[]>();
 
 const server: net.Server = net.createServer((connection: net.Socket) => {
   connection.on("data", (data: Buffer) => {
@@ -18,13 +19,13 @@ const server: net.Server = net.createServer((connection: net.Socket) => {
       const value = message[6];
       if (subCommand === "PX") {
         const expiresAt = Date.now() + Number(message[10]);
-        database.set(key, { value, expiresAt });
+        stringStore.set(key, { value, expiresAt });
       } else {
-        database.set(key, { value });
+        stringStore.set(key, { value });
       }
       connection.write("+OK\r\n");
     } else if (command === "GET") {
-      const data = database.get(message[4]);
+      const data = stringStore.get(message[4]);
       if (!data) {
         connection.write("$-1\r\n");
       } else if (data.expiresAt && data.expiresAt < Date.now()) {
@@ -32,6 +33,34 @@ const server: net.Server = net.createServer((connection: net.Socket) => {
       } else {
         connection.write(`$${data.value?.length}\r\n${data.value}\r\n`);
       }
+    } else if (command === "RPUSH") {
+      const key = message[4];
+      const value: string[] = [];
+      for (let i = 6; i < message.length - 1; i = i + 2) {
+        value.push(message[i]);
+      }
+      if (listStore.has(key)) {
+        listStore.get(key)?.push(...value);
+      } else {
+        listStore.set(key, value);
+      }
+      const lenOfList = listStore.get(key)?.length || 0;
+      connection.write(`:${lenOfList}\r\n`);
+    } else if (command === "LRANGE") {
+      const key = message[4];
+
+      let returnValue = "";
+      let countItems = 0;
+      if (listStore.has(key)) {
+        const list = listStore.get(key) || [];
+        const startRange = Number(message[6]);
+        const endRange = Math.min(Number(message[8]), list.length - 1);
+        for (let i = startRange; i <= endRange; i++) {
+          returnValue += "$" + list[i].length + "\r\n" + list[i] + "\r\n";
+          countItems++;
+        }
+      }
+      connection.write(`*${countItems}+"\r\n"+${returnValue}`);
     }
   });
 });
