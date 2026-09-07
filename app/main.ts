@@ -48,19 +48,34 @@ const server: net.Server = net.createServer((connection: net.Socket) => {
       connection.write(`:${lenOfList}\r\n`);
     } else if (command === "LRANGE") {
       const key = message[4];
-
       let returnValue = "";
       let countItems = 0;
       if (listStore.has(key)) {
         const list = listStore.get(key) || [];
-        const startRange = Number(message[6]);
-        const endRange = Math.min(Number(message[8]), list.length - 1);
+        let startRange = 0;
+        let endRange = 0;
+        const listLen = list.length;
+        if (Number(message[6]) < 0) {
+          startRange = listLen + Number(message[6]);
+          if(startRange < 0){
+            startRange = 0
+          }
+        } else {
+          startRange = Number(message[6]);
+        }
+        if (Number(message[8]) < 0) {
+          endRange = listLen + Number(message[8]);
+        } else {
+          endRange = Math.min(Number(message[8]), listLen - 1);
+        }
+        console.log(endRange, "end");
         for (let i = startRange; i <= endRange; i++) {
           returnValue += "$" + list[i].length + "\r\n" + list[i] + "\r\n";
           countItems++;
         }
       }
-      connection.write(`*${countItems}+"\r\n"+${returnValue}`);
+      console.log(`*${countItems + "\r\n" + returnValue}`);
+      connection.write(`*${countItems}\r\n${returnValue}`);
     }
   });
 });
