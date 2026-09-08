@@ -1,4 +1,3 @@
-import type { Buffer } from "buffer";
 import * as net from "net";
 
 const stringStore = new Map<string, { value: string; expiresAt?: number }>();
@@ -110,7 +109,7 @@ const server: net.Server = net.createServer((connection: net.Socket) => {
       command: string,
       commandMap: Record<
         string,
-        (connection: net.socket, args: string[]) => void
+        (connection: net.Socket, args: string[]) => void
       >,
     ) => {
       const commandHandler = commandMap[command];
