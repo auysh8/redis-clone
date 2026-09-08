@@ -4,28 +4,42 @@ import * as net from "net";
 const stringStore = new Map<string, { value: string; expiresAt?: number }>();
 const listStore = new Map<string, string[]>();
 
+const parseRESP = (data: Buffer) => {
+  const dataArr = data.toString().split("\r\n");
+  const tokens = [];
+  for (let i = 2; i < dataArr.length; i += 2) {
+    tokens.push(dataArr[i]);
+  }
+  const commandTokens = {
+    command: tokens[0].toUpperCase(),
+    args: tokens.slice(1),
+  };
+  return commandTokens;
+};
+
 const server: net.Server = net.createServer((connection: net.Socket) => {
   connection.on("data", (data: Buffer) => {
-    const message = data.toString().split("\r\n");
-    console.log(message);
-    const command = message[2]?.toUpperCase();
+    const commandTokens = parseRESP(data);      //convert the RESP command to something usefull
+    console.log(commandTokens);
+    const command = commandTokens.command;      //extract the command from command tokens
+    
     if (command === "PING") {
       connection.write("+PONG\r\n");
     } else if (command === "ECHO") {
-      connection.write(`$${message[4].length}\r\n${message[4]}\r\n`);
+      connection.write(`$${commandTokens.args[0].length}\r\n${commandTokens.args[0]}\r\n`);
     } else if (command === "SET") {
-      const subCommand = message[8]?.toUpperCase() || null;
-      const key = message[4];
-      const value = message[6];
+      const subCommand = commandTokens.args[2]?.toUpperCase() || null;
+      const key = commandTokens.args[0];
+      const value = commandTokens.args[1];
       if (subCommand === "PX") {
-        const expiresAt = Date.now() + Number(message[10]);
+        const expiresAt = Date.now() + Number(commandTokens.args[3]);
         stringStore.set(key, { value, expiresAt });
       } else {
         stringStore.set(key, { value });
       }
       connection.write("+OK\r\n");
     } else if (command === "GET") {
-      const data = stringStore.get(message[4]);
+      const data = stringStore.get(commandTokens.args[0]);
       if (!data) {
         connection.write("$-1\r\n");
       } else if (data.expiresAt && data.expiresAt < Date.now()) {
@@ -34,10 +48,10 @@ const server: net.Server = net.createServer((connection: net.Socket) => {
         connection.write(`$${data.value?.length}\r\n${data.value}\r\n`);
       }
     } else if (command === "RPUSH") {
-      const key = message[4];
+      const key = commandTokens.args[0];
       const value: string[] = [];
-      for (let i = 6; i < message.length - 1; i = i + 2) {
-        value.push(message[i]);
+      for (let i = 1; i < commandTokens.args.length; i++) {
+        value.push(commandTokens.args[i]);
       }
       if (listStore.has(key)) {
         listStore.get(key)?.push(...value);
@@ -47,7 +61,7 @@ const server: net.Server = net.createServer((connection: net.Socket) => {
       const lenOfList = listStore.get(key)?.length || 0;
       connection.write(`:${lenOfList}\r\n`);
     } else if (command === "LRANGE") {
-      const key = message[4];
+      const key = commandTokens.args[0];
       let returnValue = "";
       let countItems = 0;
       if (listStore.has(key)) {
@@ -55,18 +69,18 @@ const server: net.Server = net.createServer((connection: net.Socket) => {
         let startRange = 0;
         let endRange = 0;
         const listLen = list.length;
-        if (Number(message[6]) < 0) {
-          startRange = listLen + Number(message[6]);
-          if(startRange < 0){
-            startRange = 0
+        if (Number(commandTokens.args[1]) < 0) {
+          startRange = listLen + Number(commandTokens.args[1]);
+          if (startRange < 0) {
+            startRange = 0;
           }
         } else {
-          startRange = Number(message[6]);
+          startRange = Number(commandTokens.args[1]);
         }
-        if (Number(message[8]) < 0) {
-          endRange = listLen + Number(message[8]);
+        if (Number(commandTokens.args[2]) < 0) {
+          endRange = listLen + Number(commandTokens.args[2]);
         } else {
-          endRange = Math.min(Number(message[8]), listLen - 1);
+          endRange = Math.min(Number(commandTokens.args[2]), listLen - 1);
         }
         console.log(endRange, "end");
         for (let i = startRange; i <= endRange; i++) {
