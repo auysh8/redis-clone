@@ -112,6 +112,26 @@ const commandMap: Record<
       connection.write(`*${countItems}\r\n${returnValue}`);
     }
   },
+  LLEN: (connection, args) => {
+    const key = args[0];
+    if (listStore.has(key)) {
+      connection.write(`:${listStore.get(key)?.length}\r\n`);
+    } else {
+      connection.write(`:0\r\n`);
+    }
+  },
+  LPOP: (connection, args) => {
+    const key = args[0];
+    let elementPoped = "";
+    if (listStore.has(key)) {
+      elementPoped = listStore.get(key)?.shift() || "";
+    }
+    if (elementPoped == "") {
+      connection.write("$-1\r\n");
+    } else {
+      connection.write(`$${elementPoped.length}\r\n${elementPoped}\r\n`);
+    }
+  },
 };
 
 const server: net.Server = net.createServer((connection: net.Socket) => {
