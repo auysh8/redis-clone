@@ -53,7 +53,7 @@ const commandMap: Record<
 
   RPUSH: (connection, args) => {
     const key = args[0];
-    const value: string[] = [];
+    const value = [];
     for (let i = 1; i < args.length; i++) {
       value.push(args[i]);
     }
@@ -63,6 +63,21 @@ const commandMap: Record<
       listStore.set(key, value);
     }
     const lenOfList = listStore.get(key)?.length || 0;
+    connection.write(`:${lenOfList}\r\n`);
+  },
+
+  LPUSH: (connection, args) => {
+    const key = args[0];
+    const value = [];
+    for (let i = 1; i < args.length; i++) {
+      value.unshift(args[i]);
+    }
+    if (listStore.has(key)) {
+      listStore.get(key)?.unshift(...value);
+    } else {
+      listStore.set(key, value);
+    }
+    const lenOfList = listStore.get(key)?.length;
     connection.write(`:${lenOfList}\r\n`);
   },
 
@@ -104,7 +119,7 @@ const server: net.Server = net.createServer((connection: net.Socket) => {
     const commandTokens = parseRESP(data); //convert the RESP command to something usefull
     const command: string = commandTokens.command; //extract the command from command tokens
 
-    // To run commands
+    // run commands
     const runCommand = (
       command: string,
       commandMap: Record<
