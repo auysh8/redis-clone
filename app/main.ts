@@ -122,14 +122,33 @@ const commandMap: Record<
   },
   LPOP: (connection, args) => {
     const key = args[0];
-    let elementPoped = "";
+    let itemsToPop = Number(args[1]) || 1;
+    let elementPoped = [];
     if (listStore.has(key)) {
-      elementPoped = listStore.get(key)?.shift() || "";
-    }
-    if (elementPoped == "") {
-      connection.write("$-1\r\n");
+      let itemLen = listStore.get(key)?.length || 0;
+      if (itemLen == 0) {
+        connection.write("$-1\r\n");
+        return null;
+      }
+      itemsToPop > itemLen ? (itemsToPop = itemLen) : null;
+      for (let i = 0; i < itemsToPop; i++) {
+        elementPoped.push(listStore.get(key)?.shift());
+      }
     } else {
-      connection.write(`$${elementPoped.length}\r\n${elementPoped}\r\n`);
+      connection.write("$-1\r\n");
+      return null;
+    }
+
+    let respArr = "";
+    for (let i = 0; i < elementPoped.length; i++) {
+      respArr += `$${elementPoped[i]?.length}\r\n${elementPoped[i]}\r\n`;
+    }
+
+    if (args[1] == undefined) {
+      console.log(`$${elementPoped[0]?.length}\r\n${elementPoped[0]}`)
+      connection.write(`$${elementPoped[0]?.length}\r\n${elementPoped[0]}\r\n`);
+    } else {
+      connection.write(`*${elementPoped.length}\r\n${respArr}`);
     }
   },
 };
