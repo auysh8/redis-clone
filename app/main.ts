@@ -2,6 +2,7 @@ import * as net from "net";
 
 const stringStore = new Map<string, { value: string; expiresAt?: number }>();
 const listStore = new Map<string, string[]>();
+const waitingStore = new Map<string, net.Socket[]>();
 
 // For parsing RESP commands
 const parseRESP = (data: Buffer) => {
@@ -57,12 +58,20 @@ const commandMap: Record<
     for (let i = 1; i < args.length; i++) {
       value.push(args[i]);
     }
+
     if (listStore.has(key)) {
       listStore.get(key)?.push(...value);
     } else {
       listStore.set(key, value);
     }
     const lenOfList = listStore.get(key)?.length || 0;
+    if (waitingStore.has(key)) {
+      const waiter = waitingStore.get(key)?.shift();
+      const popedElement = listStore.get(key)?.shift();
+      waiter?.write(
+        `*2\r\n$${key.length}\r\n${key}\r\n$${popedElement?.length}\r\n${popedElement}\r\n`,
+      );
+    }
     connection.write(`:${lenOfList}\r\n`);
   },
 
@@ -72,12 +81,20 @@ const commandMap: Record<
     for (let i = 1; i < args.length; i++) {
       value.unshift(args[i]);
     }
+
     if (listStore.has(key)) {
       listStore.get(key)?.unshift(...value);
     } else {
       listStore.set(key, value);
     }
     const lenOfList = listStore.get(key)?.length;
+    if (waitingStore.has(key)) {
+      const waiter = waitingStore.get(key)?.shift();
+      const popedElement = listStore.get(key)?.shift();
+      waiter?.write(
+        `*2\r\n$${key.length}\r\n${key}\r\n$${popedElement?.length}\r\n${popedElement}\r\n`,
+      );
+    }
     connection.write(`:${lenOfList}\r\n`);
   },
 
@@ -145,10 +162,32 @@ const commandMap: Record<
     }
 
     if (args[1] == undefined) {
-      console.log(`$${elementPoped[0]?.length}\r\n${elementPoped[0]}`)
+      console.log(`$${elementPoped[0]?.length}\r\n${elementPoped[0]}`);
       connection.write(`$${elementPoped[0]?.length}\r\n${elementPoped[0]}\r\n`);
     } else {
       connection.write(`*${elementPoped.length}\r\n${respArr}`);
+    }
+  },
+  BLPOP: (connection, args) => {
+    const key = args[0];
+    const time = Number(args[1]);
+    if (listStore.has(key)) {
+      const popedElement = listStore.get(key)?.shift();
+      connection.write(
+        `*2\r\n$${key.length}\r\n${key}\r\n$${popedElement?.length}\r\n${popedElement}\r\n`,
+      );
+      return null;
+    }
+    if (waitingStore.has(key)) {
+      waitingStore.get(key)?.push(connection);
+    } else {
+      waitingStore.set(key, [connection]);
+    }
+    if (time > 0) {
+      setTimeout(() => {
+        const waiter = waitingStore.get(key)?.shift();
+        waiter?.write("*-1\r\n");
+      }, time * 1000);
     }
   },
 };
