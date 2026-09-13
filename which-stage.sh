@@ -7,6 +7,16 @@ TESTER_DIR="/home/auysh/Projects/redis-tester"
 fuser -k 6379/tcp 2>/dev/null || true
 
 TRACK=(
+  # Base Stages
+  "jm1|Bind to a port"
+  "rg2|Respond to PING"
+  "wy1|Respond to multiple PINGs"
+  "zu2|Handle concurrent clients"
+  "qq0|Implement ECHO"
+  "la7|Implement SET & GET"
+  "yz1|Expiry"
+
+  # Lists
   "mh6|RPUSH (single)"
   "tn7|RPUSH (multiple)"
   "lx4|RPUSH (append)"
@@ -18,11 +28,26 @@ TRACK=(
   "jp1|LPOP (multiple)"
   "ec3|BLPOP (no timeout)"
   "xj7|BLPOP (with timeout)"
+
+  # Streams
+  "cc3|Streams: The TYPE command"
+  "cf6|Streams: Create a stream"
+  "hq8|Streams: Validating entry IDs"
+  "yh3|Streams: Partially auto-generated IDs"
+  "xu6|Streams: Fully auto-generated IDs"
+  "zx1|Streams: Query entries from stream"
+  "yp1|Streams: Query with -"
+  "fs1|Streams: Query with +"
+  "um0|Streams: Query single stream using XREAD"
+  "ru9|Streams: Query multiple streams using XREAD"
+  "bs1|Streams: Blocking reads"
+  "hw1|Streams: Blocking reads without timeout"
+  "xu1|Streams: Blocking reads using $"
 )
 
 for item in "${TRACK[@]}"; do
   IFS="|" read -r SLUG LABEL <<< "$item"
-  printf "Checking %-25s [%s]... " "$LABEL" "$SLUG"
+  printf "Checking %-42s [%s]... " "$LABEL" "$SLUG"
 
   OUTPUT=$(cd "$TESTER_DIR" && \
     CODECRAFTERS_REPOSITORY_DIR="$PROJECT_DIR" \
@@ -42,4 +67,4 @@ for item in "${TRACK[@]}"; do
   fi
 done
 
-echo "All stages in this track are passing!"
+echo "All configured track stages are passing!"
