@@ -1,8 +1,12 @@
 import * as net from "net";
-
+type StreamEntries = {
+  id: string;
+  fields: { key: string; value: string }[];
+};
 const stringStore = new Map<string, { value: string; expiresAt?: number }>();
 const listStore = new Map<string, string[]>();
 const waitingStore = new Map<string, net.Socket[]>();
+const streamStore = new Map<string, StreamEntries[]>();
 
 // For parsing RESP commands
 const parseRESP = (data: Buffer) => {
@@ -16,6 +20,45 @@ const parseRESP = (data: Buffer) => {
     args: tokens.slice(1),
   };
   return commandTokens;
+};
+
+const xaddIdValidation = (key: string, connection: net.Socket, id: string) => {
+  const splitId = id.split("-");
+  const idTime = Number(splitId[0]);
+  const idSequence = Number(splitId[1]);
+  if (streamStore.has(key)) {
+    const allEntries = streamStore.get(key) || [];
+    const lastId = allEntries[allEntries?.length - 1].id;
+    const lastSplitId = lastId.split("-");
+    const lastIdTime = Number(lastSplitId[0]);
+    const lastIdSequence = Number(lastSplitId[1]);
+    if (idTime == 0 && idSequence == 0) {
+      connection.write(
+        "-ERR The ID specified in XADD must be greater than 0-0\r\n",
+      );
+      return false;
+    } else if (idTime < lastIdTime) {
+      connection.write(
+        "-ERR The ID specified in XADD is equal or smaller than the target stream top item\r\n",
+      );
+      return false;
+    } else if (idTime == lastIdTime) {
+      if (lastIdSequence >= idSequence) {
+        connection.write(
+          "-ERR The ID specified in XADD is equal or smaller than the target stream top item\r\n",
+        );
+        return false;
+      }
+    }
+  } else {
+    if (idTime == 0 && idSequence == 0) {
+      connection.write(
+        "-ERR The ID specified in XADD must be greater than 0-0\r\n",
+      );
+      return false;
+    }
+  }
+  return true;
 };
 
 //contains all the commands and thier callback functions
@@ -47,6 +90,7 @@ const commandMap: Record<
       connection.write("$-1\r\n");
     } else if (data.expiresAt && data.expiresAt < Date.now()) {
       connection.write("$-1\r\n");
+      listStore.delete(args[0]);
     } else {
       connection.write(`$${data.value?.length}\r\n${data.value}\r\n`);
     }
@@ -129,6 +173,7 @@ const commandMap: Record<
       connection.write(`*${countItems}\r\n${returnValue}`);
     }
   },
+
   LLEN: (connection, args) => {
     const key = args[0];
     if (listStore.has(key)) {
@@ -137,6 +182,7 @@ const commandMap: Record<
       connection.write(`:0\r\n`);
     }
   },
+
   LPOP: (connection, args) => {
     const key = args[0];
     let itemsToPop = Number(args[1]) || 1;
@@ -168,6 +214,7 @@ const commandMap: Record<
       connection.write(`*${elementPoped.length}\r\n${respArr}`);
     }
   },
+
   BLPOP: (connection, args) => {
     const key = args[0];
     const time = Number(args[1]);
@@ -189,6 +236,38 @@ const commandMap: Record<
         waiter?.write("*-1\r\n");
       }, time * 1000);
     }
+  },
+
+  TYPE: (connection, args) => {
+    const key = args[0];
+    if (stringStore.has(key)) {
+      connection.write("+string\r\n");
+    } else if (streamStore.has(key)) {
+      connection.write("+stream\r\n");
+    } else {
+      connection.write("+none\r\n");
+    }
+  },
+
+  XADD: (connection, args) => {
+    const key = args[0];
+    const id = args[1];
+    if (xaddIdValidation(key, connection, id) == false) {
+      return null;
+    }
+    let fields = [];
+    for (let i = 2; i < args.length; i = i + 2) {
+      let entry = { key: args[i], value: args[i + 1] };
+      fields.push(entry);
+    }
+    const streamData = { id, fields };
+
+    if (streamStore.has(key)) {
+      streamStore.get(key)?.push(streamData);
+    } else {
+      streamStore.set(key, [streamData]);
+    }
+    connection.write(`$${id.length}\r\n${id}\r\n`);
   },
 };
 
