@@ -28,8 +28,7 @@ const xaddIdValidation = (key: string, connection: net.Socket, id: string) => {
   const idSequence = Number(splitId[1]);
   if (streamStore.has(key)) {
     const allEntries = streamStore.get(key) || [];
-    const lastId = allEntries[allEntries?.length - 1].id;
-    const lastSplitId = lastId.split("-");
+    const lastSplitId = allEntries[allEntries?.length - 1].id.split("-");
     const lastIdTime = Number(lastSplitId[0]);
     const lastIdSequence = Number(lastSplitId[1]);
     if (idTime == 0 && idSequence == 0) {
@@ -37,23 +36,12 @@ const xaddIdValidation = (key: string, connection: net.Socket, id: string) => {
         "-ERR The ID specified in XADD must be greater than 0-0\r\n",
       );
       return false;
-    } else if (idTime < lastIdTime) {
+    } else if (
+      idTime < lastIdTime ||
+      (idTime == lastIdTime && lastIdSequence >= idSequence)
+    ) {
       connection.write(
         "-ERR The ID specified in XADD is equal or smaller than the target stream top item\r\n",
-      );
-      return false;
-    } else if (idTime == lastIdTime) {
-      if (lastIdSequence >= idSequence) {
-        connection.write(
-          "-ERR The ID specified in XADD is equal or smaller than the target stream top item\r\n",
-        );
-        return false;
-      }
-    }
-  } else {
-    if (idTime == 0 && idSequence == 0) {
-      connection.write(
-        "-ERR The ID specified in XADD must be greater than 0-0\r\n",
       );
       return false;
     }
