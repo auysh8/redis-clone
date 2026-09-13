@@ -1,3 +1,4 @@
+import { time } from "console";
 import * as net from "net";
 type StreamEntries = {
   id: string;
@@ -22,10 +23,33 @@ const parseRESP = (data: Buffer) => {
   return commandTokens;
 };
 
-const xaddIdValidation = (key: string, connection: net.Socket, id: string) => {
-  const splitId = id.split("-");
-  const idTime = Number(splitId[0]);
-  const idSequence = Number(splitId[1]);
+const generateSeqNum = (key: string, idTime: number) => {
+  if (streamStore.has(key)) {
+    const allEntries = streamStore.get(key) || [];
+    const [lastTimeIdStr, lastSeqIdStr] =
+      allEntries[allEntries.length - 1].id.split("-");
+    const lastTimeId = Number(lastTimeIdStr);
+    const lastSeqId = Number(lastSeqIdStr);
+    if (lastTimeId == idTime) {
+      return lastSeqId + 1;
+    } else if (idTime == 1) {
+      return 0;
+    }
+  } else {
+    if (idTime == 0) {
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+};
+
+const xaddIdValidation = (
+  key: string,
+  connection: net.Socket,
+  idTime: number,
+  idSequence: number,
+) => {
   if (streamStore.has(key)) {
     const allEntries = streamStore.get(key) || [];
     const lastSplitId = allEntries[allEntries?.length - 1].id.split("-");
@@ -239,10 +263,19 @@ const commandMap: Record<
 
   XADD: (connection, args) => {
     const key = args[0];
-    const id = args[1];
-    if (xaddIdValidation(key, connection, id) == false) {
+    let id = args[1];
+    const [timeStr, sequenceStr] = id.split("-");
+    const idTime = Number(timeStr);
+    let idSequence = sequenceStr == "*" ? "*" : Number(sequenceStr);
+    if (idSequence == "*") {
+      idSequence = Number(generateSeqNum(key, idTime));
+    }
+
+    if (xaddIdValidation(key, connection, idTime, idSequence) == false) {
       return null;
     }
+
+    id = `${idTime}-${idSequence}`;
     let fields = [];
     for (let i = 2; i < args.length; i = i + 2) {
       let entry = { key: args[i], value: args[i + 1] };
