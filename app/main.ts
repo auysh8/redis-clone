@@ -1,4 +1,3 @@
-import { time } from "console";
 import * as net from "net";
 type StreamEntries = {
   id: string;
@@ -21,6 +20,26 @@ const parseRESP = (data: Buffer) => {
     args: tokens.slice(1),
   };
   return commandTokens;
+};
+
+const generateId = (key: string, id: string) => {
+  let newId = "";
+  const currentTime = Date.now();
+  if (streamStore.has(key)) {
+    const allEntries = streamStore.get(key) || [];
+    let [lastTimeIdStr, lastSeqIdStr] =
+      allEntries[allEntries.length - 1].id.split("-");
+
+    if (currentTime == Number(lastTimeIdStr)) {
+      lastSeqIdStr = (Number(lastSeqIdStr) + 1).toString();
+      newId = `${lastTimeIdStr}-${lastSeqIdStr}`;
+    } else {
+      newId = `${currentTime}-0`;
+    }
+  } else {
+    newId = `${currentTime}-0`;
+  }
+  return newId;
 };
 
 const generateSeqNum = (key: string, idTime: number) => {
@@ -264,18 +283,27 @@ const commandMap: Record<
   XADD: (connection, args) => {
     const key = args[0];
     let id = args[1];
-    const [timeStr, sequenceStr] = id.split("-");
-    const idTime = Number(timeStr);
-    let idSequence = sequenceStr == "*" ? "*" : Number(sequenceStr);
-    if (idSequence == "*") {
-      idSequence = Number(generateSeqNum(key, idTime));
+    console.log("yes : ", id);
+    if (id === "*") {
+      id = generateId(key, id);
+      console.log(id);
+    } else {
+      const [timeStr, sequenceStr] = id.split("-");
+      const idTime = Number(timeStr);
+      let idSequence: number;
+      if (sequenceStr == "*") {
+        idSequence = Number(generateSeqNum(key, idTime));
+      } else {
+        idSequence = Number(sequenceStr);
+      }
+
+      if (xaddIdValidation(key, connection, idTime, idSequence) == false) {
+        return null;
+      }
+
+      id = `${idTime}-${idSequence}`;
     }
 
-    if (xaddIdValidation(key, connection, idTime, idSequence) == false) {
-      return null;
-    }
-
-    id = `${idTime}-${idSequence}`;
     let fields = [];
     for (let i = 2; i < args.length; i = i + 2) {
       let entry = { key: args[i], value: args[i + 1] };
