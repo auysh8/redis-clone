@@ -1,4 +1,6 @@
+import { time } from "console";
 import * as net from "net";
+import { start } from "repl";
 type StreamEntries = {
   id: string;
   fields: { key: string; value: string }[];
@@ -180,23 +182,23 @@ const commandMap: Record<
       let countItems = 0;
       if (listStore.has(key)) {
         const list = listStore.get(key) || [];
-        let startRange = 0;
-        let endRange = 0;
+        let startTime = 0;
+        let endTime = 0;
         const listLen = list.length;
         if (Number(args[1]) < 0) {
-          startRange = listLen + Number(args[1]);
-          if (startRange < 0) {
-            startRange = 0;
+          startTime = listLen + Number(args[1]);
+          if (startTime < 0) {
+            startTime = 0;
           }
         } else {
-          startRange = Number(args[1]);
+          startTime = Number(args[1]);
         }
         if (Number(args[2]) < 0) {
-          endRange = listLen + Number(args[2]);
+          endTime = listLen + Number(args[2]);
         } else {
-          endRange = Math.min(Number(args[2]), listLen - 1);
+          endTime = Math.min(Number(args[2]), listLen - 1);
         }
-        for (let i = startRange; i <= endRange; i++) {
+        for (let i = startTime; i <= endTime; i++) {
           returnValue += "$" + list[i].length + "\r\n" + list[i] + "\r\n";
           countItems++;
         }
@@ -239,7 +241,6 @@ const commandMap: Record<
     }
 
     if (args[1] == undefined) {
-      console.log(`$${elementPoped[0]?.length}\r\n${elementPoped[0]}`);
       connection.write(`$${elementPoped[0]?.length}\r\n${elementPoped[0]}\r\n`);
     } else {
       connection.write(`*${elementPoped.length}\r\n${respArr}`);
@@ -283,10 +284,8 @@ const commandMap: Record<
   XADD: (connection, args) => {
     const key = args[0];
     let id = args[1];
-    console.log("yes : ", id);
     if (id === "*") {
       id = generateId(key, id);
-      console.log(id);
     } else {
       const [timeStr, sequenceStr] = id.split("-");
       const idTime = Number(timeStr);
@@ -318,6 +317,75 @@ const commandMap: Record<
     }
     connection.write(`$${id.length}\r\n${id}\r\n`);
   },
+  XRANGE: (connection, args) => {
+    const key = args[0];
+    const [startTimeStr, startSeqStr = 0] = args[1].split("-");
+    const [endTimeStr, endSeqStr = Infinity] = args[2].split("-");
+    const startTime = Number(startTimeStr);
+    const endTime = Number(endTimeStr);
+    const startSeq = Number(startSeqStr);
+    const endSeq = Number(endSeqStr);
+
+    const requiredEntries = [];
+    if (streamStore.has(key)) {
+      const allEntries = streamStore.get(key) || [];
+      for (let i = 0; i < allEntries?.length; i++) {
+        const timeId = Number(allEntries[i].id.split("-")[0]);
+        const seqId = Number(allEntries[i].id.split("-")[1]);
+        if (startTime === endTime) {
+          if (timeId === startTime && startSeq <= seqId && endSeq >= seqId) {
+            requiredEntries.push(allEntries[i]);
+          }
+        } else {
+          if (timeId > startTime && timeId < endTime) {
+            requiredEntries.push(allEntries[i]);
+          } else if (
+            timeId == startTime &&
+            timeId != endTime &&
+            seqId >= startSeq
+          ) {
+            requiredEntries.push(allEntries[i]);
+          } else if (
+            timeId == endTime &&
+            timeId != startTime &&
+            seqId <= endSeq
+          ) {
+            requiredEntries.push(allEntries[i]);
+          }
+        }
+      }
+    }
+    let respArr = "";
+    let count1 = 0;
+    for (let i = 0; i < requiredEntries.length; i++) {
+      const id = requiredEntries[i].id;
+      const fields = requiredEntries[i].fields;
+      let fieldsArr = "";
+      let count2 = 0;
+      for (let j = 0; j < fields.length; j++) {
+        const key = fields[j].key;
+        const value = fields[j].value;
+        fieldsArr += `$${key.length}\r\n${key}\r\n$${value.length}\r\n${value}\r\n`;
+        count2 += 2;
+      }
+      respArr += `*2\r\n$${id.length}\r\n${id}\r\n*${count2}\r\n${fieldsArr}`;
+      count1++;
+    }
+    // console.log(`*${count1}\r\n${respArr}`);
+    connection.write(`*${count1}\r\n${respArr}`);
+  },
+  // Inside your commandMap in server.ts:
+  HELLO: (connection) => {
+    // Return an error telling the client to fall back to RESP2, or return a basic RESP2 map
+    connection.write("-ERR unknown command 'HELLO'\r\n");
+    // Alternatively, if you want ioredis to proceed silently:
+    // connection.write("%0\r\n"); // empty RESP3 map
+  },
+
+  COMMAND: (connection) => {
+    // Many Redis clients send 'COMMAND' or 'COMMAND DOCS' on startup
+    connection.write("*0\r\n"); // return empty array
+  },
 };
 
 const server: net.Server = net.createServer((connection: net.Socket) => {
@@ -338,7 +406,7 @@ const server: net.Server = net.createServer((connection: net.Socket) => {
       if (commandHandler) {
         commandHandler(connection, commandTokens.args);
       } else {
-        connection.write(`-ERROR unknow command${command}\r\n`);
+        connection.write(`-ERR unknown command '${command}'\r\n`);
       }
     };
 

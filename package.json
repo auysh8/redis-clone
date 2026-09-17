@@ -10,6 +10,7 @@
     "tsx": "^4.23.13"
   },
   "dependencies": {
+    "ioredis": "^6.0.0",
     "netcat": "^1.5.2"
   }
 }
