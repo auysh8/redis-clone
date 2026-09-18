@@ -3,7 +3,7 @@ import { stringStore } from "../storage/kvStore";
 import { streamStore } from "../storage/streamStore";
 import { listStore } from "../storage/listStore";
 
-const commandMap: Record<
+const kvCommands: Record<
   string,
   (connection: net.Socket, args: string[]) => void
 > = {
@@ -43,3 +43,5 @@ const commandMap: Record<
     }
   },
 };
+
+export {kvCommands}

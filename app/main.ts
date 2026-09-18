@@ -1,19 +1,7 @@
 import * as net from "net";
 import { parseRESP } from "./protocol/parser";
-import { streamStore } from "./storage/streamStore";
-import { listStore } from "./storage/listStore";
-import { stringStore } from "./storage/kvStore";
+import { commandMap } from "./command";
 
-//contains all the commands and thier callback functions
-const commandMap: Record<
-  string,
-  (connection: net.Socket, args: string[]) => void
-> = {
-  PING: (connection) => connection.write("+PONG\r\n"),
-
-  ECHO: (connection, args) =>
-    connection.write(`$${args[0].length}\r\n${args[0]}\r\n`),
-};
 
 const server: net.Server = net.createServer((connection: net.Socket) => {
   connection.on("data", (data: Buffer) => {
