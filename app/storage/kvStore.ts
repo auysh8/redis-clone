@@ -1,3 +1,3 @@
-const stringStore = new Map<string, { value: string; expiresAt?: number }>();
+const kvStore = new Map<string, { value: string; expiresAt?: number }>();
 
-export { stringStore };
+export { kvStore };
