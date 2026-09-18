@@ -1,5 +1,5 @@
 import * as net from "net";
-import { stringStore } from "../storage/kvStore";
+import { kvStore } from "../storage/kvStore";
 import { streamStore } from "../storage/streamStore";
 import { listStore } from "../storage/listStore";
 
@@ -13,15 +13,15 @@ const kvCommands: Record<
     const value = args[1];
     if (subCommand === "PX") {
       const expiresAt = Date.now() + Number(args[3]);
-      stringStore.set(key, { value, expiresAt });
+      kvStore.set(key, { value, expiresAt });
     } else {
-      stringStore.set(key, { value });
+      kvStore.set(key, { value });
     }
     connection.write("+OK\r\n");
   },
 
   GET: (connection, args) => {
-    const data = stringStore.get(args[0]);
+    const data = kvStore.get(args[0]);
     if (!data) {
       connection.write("$-1\r\n");
     } else if (data.expiresAt && data.expiresAt < Date.now()) {
@@ -34,7 +34,7 @@ const kvCommands: Record<
 
   TYPE: (connection, args) => {
     const key = args[0];
-    if (stringStore.has(key)) {
+    if (kvStore.has(key)) {
       connection.write("+string\r\n");
     } else if (streamStore.has(key)) {
       connection.write("+stream\r\n");
@@ -44,4 +44,4 @@ const kvCommands: Record<
   },
 };
 
-export {kvCommands}
+export { kvCommands };
