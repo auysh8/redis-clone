@@ -52,7 +52,7 @@ const streamCommands: Record<
     const [startTimeStr, startSeqStr = 0] = args[1].split("-");
     const [endTimeStr, endSeqStr = Infinity] = args[2].split("-");
     const startTime = Number(startTimeStr);
-    const endTime = Number(endTimeStr);
+    const endTime = endTimeStr == "+" ? Infinity : Number(endTimeStr);
     const startSeq = Number(startSeqStr);
     const endSeq = Number(endSeqStr);
 
@@ -106,4 +106,4 @@ const streamCommands: Record<
   },
 };
 
-export {streamCommands}
+export { streamCommands };
