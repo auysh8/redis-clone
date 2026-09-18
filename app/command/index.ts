@@ -1,6 +1,8 @@
 import * as net from "net";
 import { streamCommands } from "./streamCommands";
 import { listCommands } from "./listCommands";
+import { kvCommands } from "./kvCommands";
+import { connectionCommands } from "./connectionCommands";
 
 const commandMap: Record<
   string,
@@ -8,4 +10,8 @@ const commandMap: Record<
 > = {
   ...streamCommands,
   ...listCommands,
+  ...kvCommands,
+  ...connectionCommands,
 };
+
+export { commandMap };
