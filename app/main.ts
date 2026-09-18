@@ -1,6 +1,6 @@
-import { time } from "console";
 import * as net from "net";
-import { start } from "repl";
+import { parseRESP } from "./protocol/parser";
+
 type StreamEntries = {
   id: string;
   fields: { key: string; value: string }[];
@@ -9,20 +9,6 @@ const stringStore = new Map<string, { value: string; expiresAt?: number }>();
 const listStore = new Map<string, string[]>();
 const waitingStore = new Map<string, net.Socket[]>();
 const streamStore = new Map<string, StreamEntries[]>();
-
-// For parsing RESP commands
-const parseRESP = (data: Buffer) => {
-  const dataArr = data.toString().split("\r\n");
-  const tokens = [];
-  for (let i = 2; i < dataArr.length; i += 2) {
-    tokens.push(dataArr[i]);
-  }
-  const commandTokens = {
-    command: tokens[0].toUpperCase(),
-    args: tokens.slice(1),
-  };
-  return commandTokens;
-};
 
 const generateId = (key: string, id: string) => {
   let newId = "";
@@ -373,18 +359,6 @@ const commandMap: Record<
     }
     // console.log(`*${count1}\r\n${respArr}`);
     connection.write(`*${count1}\r\n${respArr}`);
-  },
-  // Inside your commandMap in server.ts:
-  HELLO: (connection) => {
-    // Return an error telling the client to fall back to RESP2, or return a basic RESP2 map
-    connection.write("-ERR unknown command 'HELLO'\r\n");
-    // Alternatively, if you want ioredis to proceed silently:
-    // connection.write("%0\r\n"); // empty RESP3 map
-  },
-
-  COMMAND: (connection) => {
-    // Many Redis clients send 'COMMAND' or 'COMMAND DOCS' on startup
-    connection.write("*0\r\n"); // return empty array
   },
 };
 
