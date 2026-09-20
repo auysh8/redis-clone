@@ -104,6 +104,38 @@ const streamCommands: Record<
     // console.log(`*${count1}\r\n${respArr}`);
     connection.write(`*${count1}\r\n${respArr}`);
   },
+
+  XREAD: (connection, args) => {
+    const key = args[1];
+    const [idTimeStr, idSeqStr] = args[2].split("-");
+    const idTime = Number(idTimeStr);
+    const idSeq = Number(idSeqStr);
+    let entryArr = "";
+    if (streamStore.has(key)) {
+      const allEntries = streamStore.get(key) || [];
+      for (let i = 0; i < allEntries.length; i++) {
+        let fieldsArr = "";
+        let count = 0;
+        const id = allEntries[i].id;
+        const fields = allEntries[i].fields;
+        const storeTime = Number(allEntries[i].id.split("-")[0]);
+        const storeSeq = Number(allEntries[i].id.split("-")[1]);
+        for (let j = 0; j < fields.length; j++) {
+          const key = fields[j].key;
+          const value = fields[j].value;
+          count += 2;
+          fieldsArr += `*${count}\r\n$${key.length}\r\n${key}\r\n$${value.length}\r\n${value}\r\n`;
+        }
+        if (idTime === storeTime && storeSeq > idSeq) {
+          entryArr += `*1\r\n*2\r\n$${id.length}\r\n${id}\r\n${fieldsArr}`;
+        } else if (idTime < storeTime) {
+          entryArr += `*1\r\n*2\r\n$${id.length}\r\n${id}\r\n${fieldsArr}`;
+        }
+      }
+    }
+    console.log(`*1\r\n*2\r\n$${key.length}\r\n${key}\r\n${entryArr}`);
+    connection.write(`*1\r\n*2\r\n$${key.length}\r\n${key}\r\n${entryArr}`);
+  },
 };
 
 export { streamCommands };
