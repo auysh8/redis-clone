@@ -26,7 +26,7 @@ const listCommands: Record<
       const popedElement = listStore.get(key)?.shift();
       waiter?.write(`${encoder([key, popedElement], "array")}`);
     }
-    connection.write(`:${lenOfList}\r\n`);
+    connection.write(`${encoder(lenOfList, "integer")}`);
   },
 
   LPUSH: (connection, args) => {
@@ -47,7 +47,7 @@ const listCommands: Record<
       const popedElement = listStore.get(key)?.shift();
       waiter?.write(`${encoder([key, popedElement], "array")}`);
     }
-    connection.write(`:${lenOfList}\r\n`);
+    connection.write(`${encoder(lenOfList, "integer")}`);
   },
 
   LRANGE: (connection, args) => {
@@ -84,9 +84,9 @@ const listCommands: Record<
   LLEN: (connection, args) => {
     const key = args[0];
     if (listStore.has(key)) {
-      connection.write(`:${listStore.get(key)?.length}\r\n`);
+      connection.write(`${encoder(listStore.get(key)?.length, "integer")}`);
     } else {
-      connection.write(`:0\r\n`);
+      connection.write(`${encoder(0, "integer")}`);
     }
   },
 
@@ -97,7 +97,7 @@ const listCommands: Record<
     if (listStore.has(key)) {
       let itemLen = listStore.get(key)?.length || 0;
       if (itemLen == 0) {
-        connection.write("$-1\r\n");
+        connection.write(`${encoder("", "null")}`);
         return null;
       }
       itemsToPop > itemLen ? (itemsToPop = itemLen) : null;
@@ -105,7 +105,7 @@ const listCommands: Record<
         elementPoped.push(listStore.get(key)?.shift());
       }
     } else {
-      connection.write("$-1\r\n");
+      connection.write(`${encoder("", "null")}`);
       return null;
     }
 
@@ -137,7 +137,7 @@ const listCommands: Record<
     if (time > 0) {
       setTimeout(() => {
         const waiter = waitingStore.get(key)?.shift();
-        waiter?.write("*-1\r\n");
+        waiter?.write(`${encoder([], "null")}`);
       }, time * 1000);
     }
   },

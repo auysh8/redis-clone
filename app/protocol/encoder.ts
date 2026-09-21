@@ -1,4 +1,5 @@
-type RespType = "simpleStr" | "bulkStr" | "array";
+
+type RespType = "simpleStr" | "bulkStr" | "array" | "integer" | "null";
 
 const encoder = (input: any, type: RespType) => {
   if (type == "simpleStr") {
@@ -13,6 +14,15 @@ const encoder = (input: any, type: RespType) => {
       encoded += `$${input[i].length}\r\n${input[i]}\r\n`;
     }
     return encoded;
+  } else if (type == "integer") {
+    const encoded = `:${input}\r\n`;
+    return encoded;
+  } else if (type == "null") {
+    if (typeof input == "string") {
+      return `$-1\r\n`;
+    } else if (Array.isArray(input)) {
+      return `*-1\r\n`;
+    }
   }
 };
 
