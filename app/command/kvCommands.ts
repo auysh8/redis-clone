@@ -26,7 +26,7 @@ const kvCommands: Record<
     if (!data) {
       connection.write("$-1\r\n");
     } else if (data.expiresAt && data.expiresAt < Date.now()) {
-      connection.write("$-1\r\n");
+      connection.write(`${encoder("", "null")}`);
       listStore.delete(args[0]);
     } else {
       connection.write(`${encoder(data.value, "bulkStr")}`);
