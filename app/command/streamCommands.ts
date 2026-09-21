@@ -101,40 +101,49 @@ const streamCommands: Record<
       respArr += `*2\r\n$${id.length}\r\n${id}\r\n*${count2}\r\n${fieldsArr}`;
       count1++;
     }
-    // console.log(`*${count1}\r\n${respArr}`);
     connection.write(`*${count1}\r\n${respArr}`);
   },
 
   XREAD: (connection, args) => {
-    const key = args[1];
-    const [idTimeStr, idSeqStr] = args[2].split("-");
-    const idTime = Number(idTimeStr);
-    const idSeq = Number(idSeqStr);
-    let entryArr = "";
-    if (streamStore.has(key)) {
-      const allEntries = streamStore.get(key) || [];
-      for (let i = 0; i < allEntries.length; i++) {
-        let fieldsArr = "";
-        let count = 0;
-        const id = allEntries[i].id;
-        const fields = allEntries[i].fields;
-        const storeTime = Number(allEntries[i].id.split("-")[0]);
-        const storeSeq = Number(allEntries[i].id.split("-")[1]);
-        for (let j = 0; j < fields.length; j++) {
-          const key = fields[j].key;
-          const value = fields[j].value;
-          count += 2;
-          fieldsArr += `*${count}\r\n$${key.length}\r\n${key}\r\n$${value.length}\r\n${value}\r\n`;
-        }
-        if (idTime === storeTime && storeSeq > idSeq) {
-          entryArr += `*1\r\n*2\r\n$${id.length}\r\n${id}\r\n${fieldsArr}`;
-        } else if (idTime < storeTime) {
-          entryArr += `*1\r\n*2\r\n$${id.length}\r\n${id}\r\n${fieldsArr}`;
+    const keyIdPair = args.slice(1);
+    const keys = keyIdPair.slice(0, keyIdPair.length / 2);
+    const ids = keyIdPair.slice(keyIdPair.length / 2);
+    let keyArr = "";
+    for (let k = 0; k < keyIdPair.length / 2; k++) {
+      const [idTimeStr, idSeqStr] = ids[k].split("-");
+      const idTime = Number(idTimeStr);
+      const idSeq = Number(idSeqStr);
+      let entryArr = "";
+      let entriesCount = 0;
+      if (streamStore.has(keys[k])) {
+        const allEntries = streamStore.get(keys[k]) || [];
+        for (let i = 0; i < allEntries.length; i++) {
+          let fieldsArr = "";
+          let count = 0;
+          const id = allEntries[i].id;
+          const fields = allEntries[i].fields;
+          const storeTime = Number(allEntries[i].id.split("-")[0]);
+          const storeSeq = Number(allEntries[i].id.split("-")[1]);
+          for (let j = 0; j < fields.length; j++) {
+            const key = fields[j].key;
+            const value = fields[j].value;
+            count += 2;
+            fieldsArr += `$${key.length}\r\n${key}\r\n$${value.length}\r\n${value}\r\n`;
+          }
+          if (idTime === storeTime && storeSeq > idSeq) {
+            entryArr += `*2\r\n$${id.length}\r\n${id}\r\n*${count}\r\n${fieldsArr}\r\n`;
+            entriesCount++;
+          } else if (idTime < storeTime) {
+            entryArr += `*2\r\n$${id.length}\r\n${id}\r\n${fieldsArr}\r\n`;
+            entriesCount++;
+          }
         }
       }
+      keyArr += `$${keys[k].length}\r\n${keys[k]}\r\n*${entriesCount}\r\n${entryArr}\r\n`;
     }
-    console.log(`*1\r\n*2\r\n$${key.length}\r\n${key}\r\n${entryArr}`);
-    connection.write(`*1\r\n*2\r\n$${key.length}\r\n${key}\r\n${entryArr}`);
+
+    console.log(`*${keys.length}\r\n*2\r\n${keyArr}\r\n`);
+    connection.write(`*${keys.length}\r\n*2\r\n${keyArr}\r\n`);    //write a encoder first
   },
 };
 
