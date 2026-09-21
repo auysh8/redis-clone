@@ -1,5 +1,6 @@
 import * as net from "net";
 import { listStore } from "../storage/listStore";
+import { encoder } from "../protocol/encoder";
 
 const waitingStore = new Map<string, net.Socket[]>();
 
@@ -23,9 +24,7 @@ const listCommands: Record<
     if (waitingStore.has(key)) {
       const waiter = waitingStore.get(key)?.shift();
       const popedElement = listStore.get(key)?.shift();
-      waiter?.write(
-        `*2\r\n$${key.length}\r\n${key}\r\n$${popedElement?.length}\r\n${popedElement}\r\n`,
-      );
+      waiter?.write(`${encoder([key, popedElement], "array")}`);
     }
     connection.write(`:${lenOfList}\r\n`);
   },
@@ -46,9 +45,7 @@ const listCommands: Record<
     if (waitingStore.has(key)) {
       const waiter = waitingStore.get(key)?.shift();
       const popedElement = listStore.get(key)?.shift();
-      waiter?.write(
-        `*2\r\n$${key.length}\r\n${key}\r\n$${popedElement?.length}\r\n${popedElement}\r\n`,
-      );
+      waiter?.write(`${encoder([key, popedElement], "array")}`);
     }
     connection.write(`:${lenOfList}\r\n`);
   },
@@ -56,8 +53,7 @@ const listCommands: Record<
   LRANGE: (connection, args) => {
     {
       const key = args[0];
-      let returnValue = "";
-      let countItems = 0;
+      let returnValue = [];
       if (listStore.has(key)) {
         const list = listStore.get(key) || [];
         let startTime = 0;
@@ -77,11 +73,11 @@ const listCommands: Record<
           endTime = Math.min(Number(args[2]), listLen - 1);
         }
         for (let i = startTime; i <= endTime; i++) {
-          returnValue += "$" + list[i].length + "\r\n" + list[i] + "\r\n";
-          countItems++;
+          returnValue.push(list[i]);
         }
       }
-      connection.write(`*${countItems}\r\n${returnValue}`);
+      console.log(`${encoder(returnValue, "array")}`);
+      connection.write(`${encoder(returnValue, "array")}`);
     }
   },
 
@@ -113,15 +109,15 @@ const listCommands: Record<
       return null;
     }
 
-    let respArr = "";
+    let respArr = [];
     for (let i = 0; i < elementPoped.length; i++) {
-      respArr += `$${elementPoped[i]?.length}\r\n${elementPoped[i]}\r\n`;
+      respArr.push(elementPoped[i]);
     }
 
     if (args[1] == undefined) {
-      connection.write(`$${elementPoped[0]?.length}\r\n${elementPoped[0]}\r\n`);
+      connection.write(`${encoder(elementPoped[0], "bulkStr")}`);
     } else {
-      connection.write(`*${elementPoped.length}\r\n${respArr}`);
+      connection.write(`${encoder(respArr, "array")}`);
     }
   },
 
@@ -130,9 +126,7 @@ const listCommands: Record<
     const time = Number(args[1]);
     if (listStore.has(key)) {
       const popedElement = listStore.get(key)?.shift();
-      connection.write(
-        `*2\r\n$${key.length}\r\n${key}\r\n$${popedElement?.length}\r\n${popedElement}\r\n`,
-      );
+      connection.write(`${encoder([key, popedElement], "array")}`);
       return null;
     }
     if (waitingStore.has(key)) {
