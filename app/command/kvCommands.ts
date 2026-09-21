@@ -2,6 +2,7 @@ import * as net from "net";
 import { kvStore } from "../storage/kvStore";
 import { streamStore } from "../storage/streamStore";
 import { listStore } from "../storage/listStore";
+import { encoder } from "../protocol/encoder";
 
 const kvCommands: Record<
   string,
@@ -17,7 +18,7 @@ const kvCommands: Record<
     } else {
       kvStore.set(key, { value });
     }
-    connection.write("+OK\r\n");
+    connection.write(`${encoder("OK", "simpleStr")}`);
   },
 
   GET: (connection, args) => {
@@ -28,18 +29,18 @@ const kvCommands: Record<
       connection.write("$-1\r\n");
       listStore.delete(args[0]);
     } else {
-      connection.write(`$${data.value?.length}\r\n${data.value}\r\n`);
+      connection.write(`${encoder(data.value, "bulkStr")}`);
     }
   },
 
   TYPE: (connection, args) => {
     const key = args[0];
     if (kvStore.has(key)) {
-      connection.write("+string\r\n");
+      connection.write(`${encoder("string", "simpleStr")}`);
     } else if (streamStore.has(key)) {
-      connection.write("+stream\r\n");
+      connection.write(`${encoder("stream", "simpleStr")}`);
     } else {
-      connection.write("+none\r\n");
+      connection.write(`${encoder("none", "simpleStr")}`);
     }
   },
 };
