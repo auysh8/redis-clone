@@ -5,6 +5,7 @@ import {
   xaddIdValidation,
   generateSeqNum,
 } from "../utils/streamId";
+import { encoder } from "../protocol/encoder";
 
 const streamCommands: Record<
   string,
@@ -44,7 +45,8 @@ const streamCommands: Record<
     } else {
       streamStore.set(key, [streamData]);
     }
-    connection.write(`$${id.length}\r\n${id}\r\n`);
+    connection.write(`${encoder(id, "bulkStr")}`);
+    // connection.write(`$${id.length}\r\n${id}\r\n`);
   },
 
   XRANGE: (connection, args) => {
@@ -85,41 +87,35 @@ const streamCommands: Record<
         }
       }
     }
-    let respArr = "";
-    let count1 = 0;
+    let respArr = [];
     for (let i = 0; i < requiredEntries.length; i++) {
       const id = requiredEntries[i].id;
       const fields = requiredEntries[i].fields;
-      let fieldsArr = "";
-      let count2 = 0;
+      let fieldsArr = [];
       for (let j = 0; j < fields.length; j++) {
         const key = fields[j].key;
         const value = fields[j].value;
-        fieldsArr += `$${key.length}\r\n${key}\r\n$${value.length}\r\n${value}\r\n`;
-        count2 += 2;
+        fieldsArr.push(key, value);
       }
-      respArr += `*2\r\n$${id.length}\r\n${id}\r\n*${count2}\r\n${fieldsArr}`;
-      count1++;
+      respArr.push([id, fieldsArr]);
     }
-    connection.write(`*${count1}\r\n${respArr}`);
+    connection.write(`${encoder(respArr)}`);
   },
 
   XREAD: (connection, args) => {
     const keyIdPair = args.slice(1);
     const keys = keyIdPair.slice(0, keyIdPair.length / 2);
     const ids = keyIdPair.slice(keyIdPair.length / 2);
-    let keyArr = "";
+    let keyArr = [];
     for (let k = 0; k < keyIdPair.length / 2; k++) {
       const [idTimeStr, idSeqStr] = ids[k].split("-");
       const idTime = Number(idTimeStr);
       const idSeq = Number(idSeqStr);
-      let entryArr = "";
-      let entriesCount = 0;
+      let entryArr = [];
       if (streamStore.has(keys[k])) {
         const allEntries = streamStore.get(keys[k]) || [];
         for (let i = 0; i < allEntries.length; i++) {
-          let fieldsArr = "";
-          let count = 0;
+          let fieldsArr = [];
           const id = allEntries[i].id;
           const fields = allEntries[i].fields;
           const storeTime = Number(allEntries[i].id.split("-")[0]);
@@ -127,23 +123,19 @@ const streamCommands: Record<
           for (let j = 0; j < fields.length; j++) {
             const key = fields[j].key;
             const value = fields[j].value;
-            count += 2;
-            fieldsArr += `$${key.length}\r\n${key}\r\n$${value.length}\r\n${value}\r\n`;
+            fieldsArr.push(key, value);
           }
           if (idTime === storeTime && storeSeq > idSeq) {
-            entryArr += `*2\r\n$${id.length}\r\n${id}\r\n*${count}\r\n${fieldsArr}\r\n`;
-            entriesCount++;
+            entryArr.push([id, fieldsArr]);
           } else if (idTime < storeTime) {
-            entryArr += `*2\r\n$${id.length}\r\n${id}\r\n${fieldsArr}\r\n`;
-            entriesCount++;
+            entryArr.push(id, fieldsArr);
           }
         }
       }
-      keyArr += `$${keys[k].length}\r\n${keys[k]}\r\n*${entriesCount}\r\n${entryArr}\r\n`;
+      keyArr.push([keys[k], entryArr]);
     }
 
-    console.log(`*${keys.length}\r\n*2\r\n${keyArr}\r\n`);
-    connection.write(`*${keys.length}\r\n*2\r\n${keyArr}\r\n`);    //write a encoder first
+    connection.write(`${encoder(keyArr)}`); //write a encoder first
   },
 };
 
