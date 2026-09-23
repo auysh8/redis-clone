@@ -7,6 +7,47 @@ import {
 } from "../utils/streamId";
 import { encoder } from "../protocol/encoder";
 
+const waitingStore = new Map<string, { connection: net.Socket; id: string }>();
+
+const handleXread = (keyIdPair: string[]) => {
+  const keys = keyIdPair.slice(0, keyIdPair.length / 2);
+  const ids = keyIdPair.slice(keyIdPair.length / 2);
+  let keyArr = [];
+  for (let k = 0; k < keyIdPair.length / 2; k++) {
+    const [idTimeStr, idSeqStr] = ids[k].split("-");
+    const idTime = Number(idTimeStr);
+    const idSeq = Number(idSeqStr);
+    let entryArr = [];
+    if (streamStore.has(keys[k])) {
+      const allEntries = streamStore.get(keys[k]) || [];
+      for (let i = 0; i < allEntries.length; i++) {
+        let fieldsArr = [];
+        const id = allEntries[i].id;
+        const fields = allEntries[i].fields;
+        const storeTime = Number(allEntries[i].id.split("-")[0]);
+        const storeSeq = Number(allEntries[i].id.split("-")[1]);
+        for (let j = 0; j < fields.length; j++) {
+          const key = fields[j].key;
+          const value = fields[j].value;
+          fieldsArr.push(key, value);
+        }
+        if (idTime === storeTime && storeSeq > idSeq) {
+          entryArr.push([id, fieldsArr]);
+        } else if (idTime < storeTime) {
+          entryArr.push(id, fieldsArr);
+        }
+      }
+    }
+    // console.log(entryArr);
+    if (entryArr.length == 0) {
+      return null;
+    }
+    keyArr.push([keys[k], entryArr]);
+  }
+  // console.log(keyArr);
+  return keyArr;
+};
+
 const streamCommands: Record<
   string,
   (connection: net.Socket, args: string[]) => void
@@ -45,8 +86,14 @@ const streamCommands: Record<
     } else {
       streamStore.set(key, [streamData]);
     }
+    const waiting = waitingStore.get(key);
+    if (waiting) {
+      const keyIdPair = [key, waiting.id];
+      const keyArr = handleXread(keyIdPair);
+      waiting.connection.write(`${encoder(keyArr)}`);
+      waitingStore.delete(key);
+    }
     connection.write(`${encoder(id, "bulkStr")}`);
-    // connection.write(`$${id.length}\r\n${id}\r\n`);
   },
 
   XRANGE: (connection, args) => {
@@ -103,40 +150,38 @@ const streamCommands: Record<
   },
 
   XREAD: (connection, args) => {
-    const keyIdPair = args.slice(1);
-    const keys = keyIdPair.slice(0, keyIdPair.length / 2);
-    const ids = keyIdPair.slice(keyIdPair.length / 2);
-    let keyArr = [];
-    for (let k = 0; k < keyIdPair.length / 2; k++) {
-      const [idTimeStr, idSeqStr] = ids[k].split("-");
-      const idTime = Number(idTimeStr);
-      const idSeq = Number(idSeqStr);
-      let entryArr = [];
-      if (streamStore.has(keys[k])) {
-        const allEntries = streamStore.get(keys[k]) || [];
-        for (let i = 0; i < allEntries.length; i++) {
-          let fieldsArr = [];
-          const id = allEntries[i].id;
-          const fields = allEntries[i].fields;
-          const storeTime = Number(allEntries[i].id.split("-")[0]);
-          const storeSeq = Number(allEntries[i].id.split("-")[1]);
-          for (let j = 0; j < fields.length; j++) {
-            const key = fields[j].key;
-            const value = fields[j].value;
-            fieldsArr.push(key, value);
-          }
-          if (idTime === storeTime && storeSeq > idSeq) {
-            entryArr.push([id, fieldsArr]);
-          } else if (idTime < storeTime) {
-            entryArr.push(id, fieldsArr);
-          }
+    let waitTime = 0;
+    if (args[0].toUpperCase() == "BLOCK") {
+      waitTime = Number(args[1]);
+      const keyIdPair = args.slice(3);
+      const key = keyIdPair[0];
+      const id = keyIdPair[1];
+      if (streamStore.has(key)) {
+        const keyArr = handleXread(keyIdPair);
+        if (keyArr != null) {
+          connection.write(`${encoder(keyArr)}`);
+        }
+        waitingStore.set(key, { connection, id });
+        if (waitTime > 0) {
+          setTimeout(() => {
+            waitingStore.delete(key);
+            connection.write(`${encoder([], "null")}`);
+          }, waitTime);
+        }
+      } else {
+        waitingStore.set(key, { connection, id });
+        if (waitTime > 0) {
+          setTimeout(() => {
+            waitingStore.delete(key);
+            connection.write(`${encoder([], "null")}`);
+          }, waitTime);
         }
       }
-      keyArr.push([keys[k], entryArr]);
+    } else {
+      const keyIdPair = args.slice(1);
+      const keyArr = handleXread(keyIdPair);
+      connection.write(`${encoder(keyArr)}`);
     }
-
-    connection.write(`${encoder(keyArr)}`); //write a encoder first
   },
 };
-
 export { streamCommands };
