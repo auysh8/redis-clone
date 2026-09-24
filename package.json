@@ -1,9 +1,12 @@
 {
-  "name": "@codecrafters/redis",
-  "description": "Build your own Redis challenge, from CodeCrafters",
+  "name": "redis-clone",
+  "description": "In-memory key-value and data structure store implemented in TypeScript",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "bun run app/main.ts"
+    "dev": "bun run app/main.ts",
+    "start": "bun run app/main.ts",
+    "start:node": "tsx app/main.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",
