@@ -7,7 +7,10 @@ import {
 } from "../utils/streamId";
 import { encoder } from "../protocol/encoder";
 
-const waitingStore = new Map<string, { connection: net.Socket; id: string }>();
+const waitingStore = new Map<
+  string,
+  { connection: net.Socket; id: string; timer?: NodeJS.Timeout }
+>();
 
 const handleXread = (keyIdPair: string[]) => {
   const keys = keyIdPair.slice(0, keyIdPair.length / 2);
@@ -43,7 +46,6 @@ const handleXread = (keyIdPair: string[]) => {
     }
     keyArr.push([keys[k], entryArr]);
   }
-  // console.log(keyArr);
   return keyArr;
 };
 
@@ -91,7 +93,6 @@ const streamCommands: Record<
       const keyArr = handleXread(keyIdPair);
       waiting.connection.write(`${encoder(keyArr)}`);
       waitingStore.delete(key);
-      return;
     }
     connection.write(`${encoder(id, "bulkStr")}`);
     return;
@@ -164,22 +165,23 @@ const streamCommands: Record<
           connection.write(`${encoder(keyArr)}`);
           return;
         }
-        waitingStore.set(key, { connection, id });
+
         if (waitTime > 0) {
-          setTimeout(() => {
+          const timer = setTimeout(() => {
             waitingStore.delete(key);
             connection.write(`${encoder([], "null")}`);
             return;
           }, waitTime);
+          waitingStore.set(key, { connection, id, timer });
         }
       } else {
-        waitingStore.set(key, { connection, id });
         if (waitTime > 0) {
-          setTimeout(() => {
+          const timer = setTimeout(() => {
             waitingStore.delete(key);
             connection.write(`${encoder([], "null")}`);
             return;
           }, waitTime);
+          waitingStore.set(key, { connection, id, timer });
         }
       }
     } else {
