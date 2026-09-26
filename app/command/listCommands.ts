@@ -1,7 +1,6 @@
 import * as net from "net";
 import { listStore } from "../storage/listStore";
 import { encoder } from "../protocol/encoder";
-import { retry } from "puppeteer-core/lib/third_party/rxjs/rxjs.js";
 
 const waitingStore = new Map<string, net.Socket[]>();
 
@@ -26,7 +25,6 @@ const listCommands: Record<
       const waiter = waitingStore.get(key)?.shift();
       const popedElement = listStore.get(key)?.shift();
       waiter?.write(`${encoder([key, popedElement], "array")}`);
-      return;
     }
     connection.write(`${encoder(lenOfList, "integer")}`);
     return;
@@ -49,7 +47,6 @@ const listCommands: Record<
       const waiter = waitingStore.get(key)?.shift();
       const popedElement = listStore.get(key)?.shift();
       waiter?.write(`${encoder([key, popedElement], "array")}`);
-      return;
     }
     connection.write(`${encoder(lenOfList, "integer")}`);
     return;
@@ -148,7 +145,6 @@ const listCommands: Record<
       setTimeout(() => {
         const waiter = waitingStore.get(key)?.shift();
         waiter?.write(`${encoder([], "null")}`);
-        return;
       }, time * 1000);
     }
   },
