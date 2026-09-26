@@ -158,14 +158,18 @@ const streamCommands: Record<
       waitTime = Number(args[1]);
       const keyIdPair = args.slice(3);
       const key = keyIdPair[0];
-      const id = keyIdPair[1];
+      let id = keyIdPair[1];
       if (streamStore.has(key)) {
+        if (id == "$") {
+          const lastEntries = streamStore.get(key)?.at(-1);
+          id = lastEntries?.id || "";
+        }
         const keyArr = handleXread(keyIdPair);
         if (keyArr != null) {
           connection.write(`${encoder(keyArr)}`);
           return;
         }
-
+        waitingStore.set(key, { connection, id });
         if (waitTime > 0) {
           const timer = setTimeout(() => {
             waitingStore.delete(key);
@@ -175,6 +179,7 @@ const streamCommands: Record<
           waitingStore.set(key, { connection, id, timer });
         }
       } else {
+        waitingStore.set(key, { connection, id });
         if (waitTime > 0) {
           const timer = setTimeout(() => {
             waitingStore.delete(key);

@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "bun run app/main.ts",
-    "start": "bun run app/main.ts",
-    "start:node": "tsx app/main.ts"
+    "dev": "node api.js && bun run app/main.ts",
+    "start": "node api.js && bun run app/main.ts",
+    "start:node": "node api.js && tsx app/main.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",
@@ -14,7 +14,9 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "dotenv": "^8.2.0",
     "ioredis": "^6.0.0",
-    "netcat": "^1.5.2"
+    "netcat": "^1.5.2",
+    "node-fetch": "^3.3.2"
   }
 }
