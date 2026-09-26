@@ -10,7 +10,8 @@
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",
-    "tsx": "^4.23.13"
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "ioredis": "^6.0.0",
