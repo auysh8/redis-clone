@@ -1,6 +1,7 @@
 import * as net from "net";
 import { listStore } from "../storage/listStore";
 import { encoder } from "../protocol/encoder";
+import { retry } from "puppeteer-core/lib/third_party/rxjs/rxjs.js";
 
 const waitingStore = new Map<string, net.Socket[]>();
 
@@ -25,8 +26,10 @@ const listCommands: Record<
       const waiter = waitingStore.get(key)?.shift();
       const popedElement = listStore.get(key)?.shift();
       waiter?.write(`${encoder([key, popedElement], "array")}`);
+      return;
     }
     connection.write(`${encoder(lenOfList, "integer")}`);
+    return;
   },
 
   LPUSH: (connection, args) => {
@@ -46,8 +49,10 @@ const listCommands: Record<
       const waiter = waitingStore.get(key)?.shift();
       const popedElement = listStore.get(key)?.shift();
       waiter?.write(`${encoder([key, popedElement], "array")}`);
+      return;
     }
     connection.write(`${encoder(lenOfList, "integer")}`);
+    return;
   },
 
   LRANGE: (connection, args) => {
@@ -78,6 +83,7 @@ const listCommands: Record<
       }
       console.log(`${encoder(returnValue, "array")}`);
       connection.write(`${encoder(returnValue, "array")}`);
+      return;
     }
   },
 
@@ -85,8 +91,10 @@ const listCommands: Record<
     const key = args[0];
     if (listStore.has(key)) {
       connection.write(`${encoder(listStore.get(key)?.length, "integer")}`);
+      return;
     } else {
       connection.write(`${encoder(0, "integer")}`);
+      return;
     }
   },
 
@@ -98,7 +106,7 @@ const listCommands: Record<
       let itemLen = listStore.get(key)?.length || 0;
       if (itemLen == 0) {
         connection.write(`${encoder("", "null")}`);
-        return null;
+        return;
       }
       itemsToPop > itemLen ? (itemsToPop = itemLen) : null;
       for (let i = 0; i < itemsToPop; i++) {
@@ -106,7 +114,7 @@ const listCommands: Record<
       }
     } else {
       connection.write(`${encoder("", "null")}`);
-      return null;
+      return;
     }
 
     let respArr = [];
@@ -116,8 +124,10 @@ const listCommands: Record<
 
     if (args[1] == undefined) {
       connection.write(`${encoder(elementPoped[0], "bulkStr")}`);
+      return;
     } else {
       connection.write(`${encoder(respArr, "array")}`);
+      return;
     }
   },
 
@@ -127,7 +137,7 @@ const listCommands: Record<
     if (listStore.has(key)) {
       const popedElement = listStore.get(key)?.shift();
       connection.write(`${encoder([key, popedElement], "array")}`);
-      return null;
+      return;
     }
     if (waitingStore.has(key)) {
       waitingStore.get(key)?.push(connection);
@@ -138,6 +148,7 @@ const listCommands: Record<
       setTimeout(() => {
         const waiter = waitingStore.get(key)?.shift();
         waiter?.write(`${encoder([], "null")}`);
+        return;
       }, time * 1000);
     }
   },

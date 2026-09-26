@@ -38,7 +38,6 @@ const handleXread = (keyIdPair: string[]) => {
         }
       }
     }
-    // console.log(entryArr);
     if (entryArr.length == 0) {
       return null;
     }
@@ -92,8 +91,10 @@ const streamCommands: Record<
       const keyArr = handleXread(keyIdPair);
       waiting.connection.write(`${encoder(keyArr)}`);
       waitingStore.delete(key);
+      return;
     }
     connection.write(`${encoder(id, "bulkStr")}`);
+    return;
   },
 
   XRANGE: (connection, args) => {
@@ -147,6 +148,7 @@ const streamCommands: Record<
       respArr.push([id, fieldsArr]);
     }
     connection.write(`${encoder(respArr)}`);
+    return;
   },
 
   XREAD: (connection, args) => {
@@ -160,12 +162,14 @@ const streamCommands: Record<
         const keyArr = handleXread(keyIdPair);
         if (keyArr != null) {
           connection.write(`${encoder(keyArr)}`);
+          return;
         }
         waitingStore.set(key, { connection, id });
         if (waitTime > 0) {
           setTimeout(() => {
             waitingStore.delete(key);
             connection.write(`${encoder([], "null")}`);
+            return;
           }, waitTime);
         }
       } else {
@@ -174,6 +178,7 @@ const streamCommands: Record<
           setTimeout(() => {
             waitingStore.delete(key);
             connection.write(`${encoder([], "null")}`);
+            return;
           }, waitTime);
         }
       }
@@ -181,6 +186,7 @@ const streamCommands: Record<
       const keyIdPair = args.slice(1);
       const keyArr = handleXread(keyIdPair);
       connection.write(`${encoder(keyArr)}`);
+      return;
     }
   },
 };

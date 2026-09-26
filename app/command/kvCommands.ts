@@ -19,17 +19,21 @@ const kvCommands: Record<
       kvStore.set(key, { value });
     }
     connection.write(`${encoder("OK", "simpleStr")}`);
+    return;
   },
 
   GET: (connection, args) => {
     const data = kvStore.get(args[0]);
     if (!data) {
       connection.write("$-1\r\n");
+      return;
     } else if (data.expiresAt && data.expiresAt < Date.now()) {
       connection.write(`${encoder("", "null")}`);
       listStore.delete(args[0]);
+      return;
     } else {
       connection.write(`${encoder(data.value, "bulkStr")}`);
+      return;
     }
   },
 
@@ -37,10 +41,13 @@ const kvCommands: Record<
     const key = args[0];
     if (kvStore.has(key)) {
       connection.write(`${encoder("string", "simpleStr")}`);
+      return;
     } else if (streamStore.has(key)) {
       connection.write(`${encoder("stream", "simpleStr")}`);
+      return;
     } else {
       connection.write(`${encoder("none", "simpleStr")}`);
+      return;
     }
   },
 };
