@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node api.js && bun run app/main.ts",
-    "start": "node api.js && bun run app/main.ts",
-    "start:node": "node api.js && tsx app/main.ts"
+    "dev": "bun run app/main.ts",
+    "start": "bun run app/main.ts",
+    "start:node": "tsx app/main.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",
